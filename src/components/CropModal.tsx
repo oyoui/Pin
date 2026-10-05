@@ -6,7 +6,7 @@ interface CropModalProps {
   imageItem: ImageItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onApplyCrop: (croppedDataUrl: string) => void;
+  onApplyCrop: (croppedDataUrl: string, croppedWidth: number, croppedHeight: number) => void;
   onUseOriginal: () => void;
 }
 
@@ -19,15 +19,14 @@ export const CropModal: React.FC<CropModalProps> = ({
   onApplyCrop,
   onUseOriginal,
 }) => {
-  // All hooks called unconditionally at top level (React 19 compliance)
   const [aspectPreset, setAspectPreset] = useState<AspectRatioPreset>('free');
   const [rotation, setRotation] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
   const [cropBox, setCropBox] = useState<{ x: number; y: number; width: number; height: number }>({
-    x: 10,
-    y: 10,
-    width: 80,
-    height: 80,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
   });
 
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
@@ -41,8 +40,8 @@ export const CropModal: React.FC<CropModalProps> = ({
     if (imageItem) {
       setRotation(0);
       setZoom(1);
-      setCropBox({ x: 10, y: 10, width: 80, height: 80 });
-      setAspectPreset('free');
+      setCropBox({ x: 0, y: 0, width: 100, height: 100 });
+      setAspectPreset('original');
     }
   }, [imageItem?.id]);
 
@@ -53,13 +52,21 @@ export const CropModal: React.FC<CropModalProps> = ({
   const handleReset = () => {
     setRotation(0);
     setZoom(1);
-    setCropBox({ x: 10, y: 10, width: 80, height: 80 });
-    setAspectPreset('free');
+    setCropBox({ x: 0, y: 0, width: 100, height: 100 });
+    setAspectPreset('original');
   };
 
   const applyAspectToCropBox = useCallback((preset: AspectRatioPreset) => {
     setAspectPreset(preset);
     if (!imageItem) return;
+
+    if (preset === 'original') {
+      setZoom(1);
+      setRotation(0);
+      setCropBox({ x: 0, y: 0, width: 100, height: 100 });
+      return;
+    }
+
     if (preset === 'free') return;
 
     let targetRatio = 1;
@@ -68,26 +75,23 @@ export const CropModal: React.FC<CropModalProps> = ({
     else if (preset === '3:4') targetRatio = 3 / 4;
     else if (preset === '16:9') targetRatio = 16 / 9;
     else if (preset === '9:16') targetRatio = 9 / 16;
-    else if (preset === 'original') {
-      targetRatio = (imageItem.naturalWidth || 800) / (imageItem.naturalHeight || 800);
-    }
 
     setCropBox((prev) => {
       let newW = prev.width;
       let newH = newW / targetRatio;
-      if (newH > 90) {
-        newH = 80;
+      if (newH > 95) {
+        newH = 90;
         newW = newH * targetRatio;
       }
-      if (newW > 90) {
-        newW = 80;
+      if (newW > 95) {
+        newW = 90;
         newH = newW / targetRatio;
       }
       return {
-        x: Math.max(5, (100 - newW) / 2),
-        y: Math.max(5, (100 - newH) / 2),
-        width: Math.min(90, newW),
-        height: Math.min(90, newH),
+        x: Math.max(0, (100 - newW) / 2),
+        y: Math.max(0, (100 - newH) / 2),
+        width: Math.min(100, newW),
+        height: Math.min(100, newH),
       };
     });
   }, [imageItem]);
@@ -190,13 +194,13 @@ export const CropModal: React.FC<CropModalProps> = ({
     ctx.restore();
 
     const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    onApplyCrop(croppedDataUrl);
+    onApplyCrop(croppedDataUrl, canvas.width, canvas.height);
     onClose();
   };
 
   const aspectPresets: { key: AspectRatioPreset; label: string }[] = [
+    { key: 'original', label: '原图' },
     { key: 'free', label: '自由' },
-    { key: 'original', label: '原比例' },
     { key: '1:1', label: '1:1' },
     { key: '4:3', label: '4:3' },
     { key: '3:4', label: '3:4' },
@@ -204,19 +208,18 @@ export const CropModal: React.FC<CropModalProps> = ({
     { key: '9:16', label: '9:16' },
   ];
 
-  // Return null ONLY after all hooks have been invoked
   if (!isOpen || !imageItem) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6 select-none animate-in fade-in duration-150">
       <div className="w-full max-w-lg bg-[#FAF8F5] rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[96dvh] border border-[#E8E2D9]">
-        {/* Header (No descriptive/tutorial text) */}
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E8E2D9] bg-white/70 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-[#8D9B8E]/15 flex items-center justify-center text-[#556456]">
               <Scissors className="w-3.5 h-3.5" />
             </div>
-            <h2 className="text-sm font-semibold text-[#33322E]">图片裁剪</h2>
+            <h2 className="text-sm font-semibold text-[#33322E]">裁剪</h2>
           </div>
           <button
             onClick={onClose}
@@ -317,7 +320,7 @@ export const CropModal: React.FC<CropModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#DDD5CA] hover:bg-[#F2ECE4] transition-colors"
             >
               <RotateCw className="w-3.5 h-3.5" />
-              <span>旋转 90°</span>
+              <span>90°</span>
             </button>
             <button
               onClick={handleReset}

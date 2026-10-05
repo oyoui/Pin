@@ -165,12 +165,16 @@ export default function App() {
           const dataUrl = e.target?.result as string;
           const img = new Image();
           img.onload = () => {
+            const w = img.naturalWidth || 800;
+            const h = img.naturalHeight || 800;
             resolve({
               id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
               originalUrl: dataUrl,
               displayUrl: dataUrl,
-              naturalWidth: img.naturalWidth || 800,
-              naturalHeight: img.naturalHeight || 800,
+              naturalWidth: w,
+              naturalHeight: h,
+              originalWidth: w,
+              originalHeight: h,
               weight: 1,
             });
           };
@@ -226,11 +230,18 @@ export default function App() {
     });
   };
 
-  const handleApplyCrop = (croppedDataUrl: string) => {
+  const handleApplyCrop = (croppedDataUrl: string, croppedWidth: number, croppedHeight: number) => {
     if (!croppingImage) return;
     setImages((prev) =>
       prev.map((img) =>
-        img.id === croppingImage.id ? { ...img, displayUrl: croppedDataUrl } : img
+        img.id === croppingImage.id
+          ? {
+              ...img,
+              displayUrl: croppedDataUrl,
+              naturalWidth: croppedWidth,
+              naturalHeight: croppedHeight,
+            }
+          : img
       )
     );
     setCroppingImage(null);
@@ -241,7 +252,14 @@ export default function App() {
     if (!croppingImage) return;
     setImages((prev) =>
       prev.map((img) =>
-        img.id === croppingImage.id ? { ...img, displayUrl: img.originalUrl } : img
+        img.id === croppingImage.id
+          ? {
+              ...img,
+              displayUrl: img.originalUrl,
+              naturalWidth: img.originalWidth || img.naturalWidth,
+              naturalHeight: img.originalHeight || img.naturalHeight,
+            }
+          : img
       )
     );
     setCroppingImage(null);
@@ -390,7 +408,7 @@ export default function App() {
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
   return (
-    <div className="h-[100dvh] w-full bg-[#F6F5F2] text-[#33322E] flex flex-col justify-between overflow-hidden selection:bg-[#8D9B8E]/30 font-sans">
+    <div className="fixed inset-0 h-[100dvh] w-full bg-[#F6F5F2] text-[#33322E] flex flex-col justify-between overflow-hidden select-none touch-none overscroll-none font-sans">
       {/* 1. Top Header */}
       <Header
         direction={direction}

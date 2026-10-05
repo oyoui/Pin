@@ -14,56 +14,42 @@ export const ShapePanel: React.FC<ShapePanelProps> = ({
   onAddShape,
   onUpdateShape,
 }) => {
-  const shapesList: { type: ShapeType; label: string; icon: React.ReactNode }[] = [
-    { type: 'rect', label: '正方形', icon: <Square className="w-5 h-5" /> },
-    { type: 'rounded-rect', label: '圆角矩形', icon: <RectangleHorizontal className="w-5 h-5" /> },
-    { type: 'circle', label: '圆形', icon: <Circle className="w-5 h-5" /> },
-    { type: 'triangle', label: '三角形', icon: <Triangle className="w-5 h-5" /> },
-    { type: 'star', label: '五角星', icon: <Star className="w-5 h-5" /> },
-    { type: 'heart', label: '爱心', icon: <Heart className="w-5 h-5" /> },
-    { type: 'line', label: '直线', icon: <Slash className="w-5 h-5" /> },
+  // Shape list with NO text descriptions as requested
+  const shapesList: { type: ShapeType; icon: React.ReactNode }[] = [
+    { type: 'rect', icon: <Square className="w-5 h-5" /> },
+    { type: 'rounded-rect', icon: <RectangleHorizontal className="w-5 h-5" /> },
+    { type: 'circle', icon: <Circle className="w-5 h-5" /> },
+    { type: 'triangle', icon: <Triangle className="w-5 h-5" /> },
+    { type: 'star', icon: <Star className="w-5 h-5" /> },
+    { type: 'heart', icon: <Heart className="w-5 h-5" /> },
+    { type: 'line', icon: <Slash className="w-5 h-5" /> },
   ];
 
   return (
     <div className="flex flex-col gap-3.5 text-[#33322E] select-none">
-      {/* 1. Shape Selection Grid */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-[#5A554D]">形状</span>
-        </div>
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-          {shapesList.map((item) => (
-            <button
-              key={item.type}
-              onClick={() => onAddShape(item.type)}
-              className="flex flex-col items-center justify-center p-2 rounded-xl bg-white border border-[#E4DDD3] hover:border-[#8D9B8E] hover:bg-[#F9F7F4] active:scale-95 transition-all group"
-              title={item.label}
-            >
-              <div className="text-[#68635A] group-hover:text-[#8D9B8E] transition-colors">
-                {item.icon}
-              </div>
-              <span className="text-[10px] mt-1 text-[#787268] whitespace-nowrap truncate max-w-full">
-                {item.label}
-              </span>
-            </button>
-          ))}
-        </div>
+      {/* 1. Shape Selection Grid (Icons only, NO text descriptions) */}
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        {shapesList.map((item) => (
+          <button
+            key={item.type}
+            onClick={() => onAddShape(item.type)}
+            className="flex items-center justify-center h-11 rounded-xl bg-white border border-[#E4DDD3] hover:border-[#8D9B8E] hover:bg-[#F9F7F4] active:scale-95 transition-all"
+          >
+            <div className="text-[#5A554D] hover:text-[#8D9B8E] transition-colors">
+              {item.icon}
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* 2. Shape Properties (Shown when a shape layer is selected) */}
       {selectedLayer && (
         <div className="p-3.5 bg-white rounded-2xl border border-[#E8E2D8] flex flex-col gap-3.5 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between pb-2 border-b border-[#F0EAE1]">
-            <span className="text-xs font-semibold text-[#4A463F]">
-              属性 · {shapesList.find((s) => s.type === selectedLayer.shapeType)?.label}
-            </span>
-          </div>
-
           {/* Fill controls (not applicable to line) */}
           {selectedLayer.shapeType !== 'line' && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-[#5E5950] font-medium">填充颜色</span>
+                <span className="text-xs text-[#5E5950] font-medium">填充</span>
                 <button
                   type="button"
                   onClick={() => onUpdateShape({ fillEnabled: !selectedLayer.fillEnabled })}
@@ -80,28 +66,36 @@ export const ShapePanel: React.FC<ShapePanelProps> = ({
               </div>
 
               {selectedLayer.fillEnabled && (
-                <div className="flex items-center gap-1.5 overflow-x-auto py-1 no-scrollbar">
-                  {MORANDI_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      onClick={() => onUpdateShape({ fillColor: c.hex })}
-                      className={`w-6 h-6 rounded-full shrink-0 border transition-transform ${
-                        selectedLayer.fillColor.toLowerCase() === c.hex.toLowerCase()
-                          ? 'ring-2 ring-[#8D9B8E] ring-offset-2 scale-110'
-                          : 'border-black/10 hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
-                  <label className="w-6 h-6 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
+                <div className="flex items-center gap-2 overflow-x-auto py-1 px-3 no-scrollbar -mx-1">
+                  {MORANDI_COLORS.map((c) => {
+                    const isSelected = selectedLayer.fillColor.toLowerCase() === c.hex.toLowerCase();
+                    const isLight = c.hex.toUpperCase() === '#FFFFFF' || c.hex.toUpperCase() === '#F9F8F6' || c.hex.toUpperCase() === '#EFECE6';
+                    return (
+                      <button
+                        key={c.hex}
+                        onClick={() => onUpdateShape({ fillColor: c.hex })}
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'ring-2 ring-[#8D9B8E] ring-inset scale-105 shadow-xs'
+                            : 'border border-black/15 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                      >
+                        {isSelected && (
+                          <span className={`w-1.5 h-1.5 rounded-full ${isLight ? 'bg-black/60' : 'bg-white'}`} />
+                        )}
+                      </button>
+                    );
+                  })}
+                  <label className="w-7 h-7 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
                     <input
                       type="color"
                       value={selectedLayer.fillColor}
                       onChange={(e) => onUpdateShape({ fillColor: e.target.value })}
                       className="opacity-0 absolute inset-0 cursor-pointer"
                     />
-                    <span className="text-[10px] text-[#7A746B]">+</span>
+                    <span className="text-xs text-[#7A746B]">+</span>
                   </label>
                 </div>
               )}
@@ -111,7 +105,7 @@ export const ShapePanel: React.FC<ShapePanelProps> = ({
           {/* Stroke controls */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#5E5950] font-medium">边框线条</span>
+              <span className="text-xs text-[#5E5950] font-medium">边框</span>
               <button
                 type="button"
                 onClick={() => onUpdateShape({ strokeEnabled: !selectedLayer.strokeEnabled })}
@@ -129,33 +123,41 @@ export const ShapePanel: React.FC<ShapePanelProps> = ({
 
             {selectedLayer.strokeEnabled && (
               <>
-                <div className="flex items-center gap-1.5 overflow-x-auto py-1 no-scrollbar">
-                  {STROKE_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      onClick={() => onUpdateShape({ strokeColor: c.hex })}
-                      className={`w-6 h-6 rounded-full shrink-0 border transition-transform ${
-                        selectedLayer.strokeColor.toLowerCase() === c.hex.toLowerCase()
-                          ? 'ring-2 ring-[#8D9B8E] ring-offset-2 scale-110'
-                          : 'border-black/15 hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
-                  <label className="w-6 h-6 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
+                <div className="flex items-center gap-2 overflow-x-auto py-1 px-3 no-scrollbar -mx-1">
+                  {STROKE_COLORS.map((c) => {
+                    const isSelected = selectedLayer.strokeColor.toLowerCase() === c.hex.toLowerCase();
+                    const isLight = c.hex.toUpperCase() === '#FFFFFF' || c.hex.toUpperCase() === '#EFECE6';
+                    return (
+                      <button
+                        key={c.hex}
+                        onClick={() => onUpdateShape({ strokeColor: c.hex })}
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'ring-2 ring-[#8D9B8E] ring-inset scale-105 shadow-xs'
+                            : 'border border-black/15 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                      >
+                        {isSelected && (
+                          <span className={`w-1.5 h-1.5 rounded-full ${isLight ? 'bg-black/60' : 'bg-white'}`} />
+                        )}
+                      </button>
+                    );
+                  })}
+                  <label className="w-7 h-7 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
                     <input
                       type="color"
                       value={selectedLayer.strokeColor}
                       onChange={(e) => onUpdateShape({ strokeColor: e.target.value })}
                       className="opacity-0 absolute inset-0 cursor-pointer"
                     />
-                    <span className="text-[10px] text-[#7A746B]">+</span>
+                    <span className="text-xs text-[#7A746B]">+</span>
                   </label>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 pt-1">
-                  <span className="text-xs text-[#6B655C]">边框粗细</span>
+                  <span className="text-xs text-[#6B655C]">粗细</span>
                   <div className="flex items-center gap-2 flex-1 max-w-[200px]">
                     <input
                       type="range"

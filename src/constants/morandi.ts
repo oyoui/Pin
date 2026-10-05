@@ -101,6 +101,8 @@ export const DEFAULT_SAMPLE_IMAGES = [
     displayUrl: '',
     naturalWidth: 800,
     naturalHeight: 1000,
+    originalWidth: 800,
+    originalHeight: 1000,
     weight: 1,
   },
   {
@@ -136,6 +138,8 @@ export const DEFAULT_SAMPLE_IMAGES = [
     displayUrl: '',
     naturalWidth: 800,
     naturalHeight: 1000,
+    originalWidth: 800,
+    originalHeight: 1000,
     weight: 1,
   },
 ];

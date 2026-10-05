@@ -75,41 +75,56 @@ export const StickerPanel: React.FC<StickerPanelProps> = ({
 
           {/* Stroke Color Palette */}
           {selectedSticker.strokeWidth > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1 no-scrollbar">
-              {STROKE_COLORS.map((c) => (
-                <button
-                  key={c.hex}
-                  onClick={() => onUpdateSticker({ strokeColor: c.hex })}
-                  className={`w-6 h-6 rounded-full shrink-0 border transition-transform ${
-                    selectedSticker.strokeColor.toLowerCase() === c.hex.toLowerCase()
-                      ? 'ring-2 ring-[#8D9B8E] ring-offset-2 scale-110'
-                      : 'border-black/15 hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
-              {MORANDI_COLORS.slice(0, 4).map((c) => (
-                <button
-                  key={c.hex}
-                  onClick={() => onUpdateSticker({ strokeColor: c.hex })}
-                  className={`w-6 h-6 rounded-full shrink-0 border transition-transform ${
-                    selectedSticker.strokeColor.toLowerCase() === c.hex.toLowerCase()
-                      ? 'ring-2 ring-[#8D9B8E] ring-offset-2 scale-110'
-                      : 'border-black/15 hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
-              <label className="w-6 h-6 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
+            <div className="flex items-center gap-2 overflow-x-auto py-1 px-3 no-scrollbar -mx-1">
+              {STROKE_COLORS.map((c) => {
+                const isSelected = selectedSticker.strokeColor.toLowerCase() === c.hex.toLowerCase();
+                const isLight = c.hex.toUpperCase() === '#FFFFFF' || c.hex.toUpperCase() === '#EFECE6';
+                return (
+                  <button
+                    key={c.hex}
+                    onClick={() => onUpdateSticker({ strokeColor: c.hex })}
+                    className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-[#8D9B8E] ring-inset scale-105 shadow-xs'
+                        : 'border border-black/15 hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {isSelected && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${isLight ? 'bg-black/60' : 'bg-white'}`} />
+                    )}
+                  </button>
+                );
+              })}
+              {MORANDI_COLORS.slice(0, 4).map((c) => {
+                const isSelected = selectedSticker.strokeColor.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.hex}
+                    onClick={() => onUpdateSticker({ strokeColor: c.hex })}
+                    className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-[#8D9B8E] ring-inset scale-105 shadow-xs'
+                        : 'border border-black/15 hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </button>
+                );
+              })}
+              <label className="w-7 h-7 rounded-full shrink-0 border border-dashed border-[#AAA296] flex items-center justify-center cursor-pointer hover:border-[#8D9B8E] relative overflow-hidden">
                 <input
                   type="color"
                   value={selectedSticker.strokeColor}
                   onChange={(e) => onUpdateSticker({ strokeColor: e.target.value })}
                   className="opacity-0 absolute inset-0 cursor-pointer"
                 />
-                <span className="text-[10px] text-[#7A746B]">+</span>
+                <span className="text-xs text-[#7A746B]">+</span>
               </label>
             </div>
           )}
@@ -186,20 +201,27 @@ export const StickerPanel: React.FC<StickerPanelProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-                  {SHADOW_COLORS.map((c) => (
-                    <button
-                      key={c.hex}
-                      onClick={() => onUpdateSticker({ shadowColor: c.hex })}
-                      className={`w-6 h-6 rounded-full shrink-0 border transition-transform ${
-                        selectedSticker.shadowColor === c.hex
-                          ? 'ring-2 ring-[#8D9B8E] ring-offset-2 scale-110'
-                          : 'border-black/15 hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.name}
-                    />
-                  ))}
+                <div className="flex items-center gap-2 overflow-x-auto py-1 px-3 no-scrollbar -mx-1">
+                  {SHADOW_COLORS.map((c) => {
+                    const isSelected = selectedSticker.shadowColor === c.hex;
+                    return (
+                      <button
+                        key={c.hex}
+                        onClick={() => onUpdateSticker({ shadowColor: c.hex })}
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'ring-2 ring-[#8D9B8E] ring-inset scale-105 shadow-xs'
+                            : 'border border-black/15 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                      >
+                        {isSelected && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#8D9B8E]" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

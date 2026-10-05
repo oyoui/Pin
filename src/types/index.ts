@@ -15,6 +15,8 @@ export interface ImageItem {
   displayUrl: string; // active cropped image dataUrl or originalUrl
   naturalWidth: number;
   naturalHeight: number;
+  originalWidth: number;
+  originalHeight: number;
   weight: number; // flex weight relative to siblings, e.g. 1
   cropData?: CropData;
 }

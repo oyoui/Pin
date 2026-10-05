@@ -12,7 +12,6 @@ import { drawImageWithStroke } from './stickerStroke';
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // Only set crossOrigin for remote http/https URLs. Never for data: or blob: URLs
     if (src.startsWith('http://') || src.startsWith('https://')) {
       img.crossOrigin = 'anonymous';
     }
@@ -25,9 +24,6 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Draws an arbitrary shape path in a local coordinate system of [0, 0, w, h]
- */
 function drawShapePath(ctx: CanvasRenderingContext2D, shape: ShapeLayer, w: number, h: number) {
   ctx.beginPath();
   switch (shape.shapeType) {
@@ -79,7 +75,6 @@ function drawShapePath(ctx: CanvasRenderingContext2D, shape: ShapeLayer, w: numb
     }
 
     case 'heart': {
-      // Beautiful smooth parametric heart fitting in [0, 0, w, h]
       const topCurveHeight = h * 0.3;
       ctx.moveTo(w / 2, topCurveHeight);
       ctx.bezierCurveTo(w / 2, 0, 0, 0, 0, topCurveHeight);
@@ -98,48 +93,103 @@ function drawShapePath(ctx: CanvasRenderingContext2D, shape: ShapeLayer, w: numb
   }
 }
 
+export interface StitchedLayout {
+  totalWidth: number;
+  totalHeight: number;
+  aspectRatio: number;
+  segments: {
+    index: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fraction: number;
+  }[];
+}
+
 /**
- * Calculates canvas base dimensions based on stitched images,
- * stitch direction, and their relative weights.
+ * Calculates exact canvas dimensions and segment positions
+ * by directly adding the images' natural / cropped sizes together (no preset plate!).
  */
-export function calculateCanvasSize(
+export function getStitchedCanvasDimensions(
   images: ImageItem[],
   direction: StitchDirection,
-  baseTargetSize = 1200
-): { width: number; height: number } {
+  baseReference = 1200
+): StitchedLayout {
   if (images.length === 0) {
-    return { width: baseTargetSize, height: baseTargetSize };
+    return {
+      totalWidth: baseReference,
+      totalHeight: baseReference,
+      aspectRatio: 1,
+      segments: [],
+    };
   }
 
-  // Find standard aspect ratio of each item
-  const totalWeight = images.reduce((acc, img) => acc + (img.weight || 1), 0);
-
   if (direction === 'horizontal') {
-    // Height is normalized, width is proportional to weight
-    const targetHeight = baseTargetSize;
-    // Base width approximation
-    const totalRatio = images.reduce((acc, img) => {
-      const naturalAspect = (img.naturalWidth || 800) / (img.naturalHeight || 800);
-      return acc + naturalAspect * (img.weight || 1);
-    }, 0);
-    const avgRatio = totalRatio / totalWeight;
-    const targetWidth = Math.round(targetHeight * (avgRatio * images.length));
+    // Shared common height H
+    const H = baseReference;
+    // Each image's width is directly proportional to its actual aspect ratio * weight
+    const rawWidths = images.map((img) => {
+      const nw = img.naturalWidth || 800;
+      const nh = img.naturalHeight || 800;
+      const aspect = nw / nh;
+      const weight = img.weight || 1;
+      return H * aspect * weight;
+    });
+
+    const totalWidth = rawWidths.reduce((sum, w) => sum + w, 0);
+    let currentX = 0;
+    const segments = rawWidths.map((w, idx) => {
+      const seg = {
+        index: idx,
+        x: currentX,
+        y: 0,
+        width: w,
+        height: H,
+        fraction: w / totalWidth,
+      };
+      currentX += w;
+      return seg;
+    });
+
     return {
-      width: Math.max(600, Math.min(2400, targetWidth)),
-      height: targetHeight,
+      totalWidth: Math.round(totalWidth),
+      totalHeight: H,
+      aspectRatio: totalWidth / H,
+      segments,
     };
   } else {
-    // Vertical: Width is normalized, height depends on weight
-    const targetWidth = baseTargetSize;
-    const totalRatio = images.reduce((acc, img) => {
-      const naturalAspect = (img.naturalHeight || 800) / (img.naturalWidth || 800);
-      return acc + naturalAspect * (img.weight || 1);
-    }, 0);
-    const avgRatio = totalRatio / totalWeight;
-    const targetHeight = Math.round(targetWidth * (avgRatio * images.length));
+    // Shared common width W
+    const W = baseReference;
+    // Each image's height is directly proportional to its actual inverse aspect ratio * weight
+    const rawHeights = images.map((img) => {
+      const nw = img.naturalWidth || 800;
+      const nh = img.naturalHeight || 800;
+      const invAspect = nh / nw;
+      const weight = img.weight || 1;
+      return W * invAspect * weight;
+    });
+
+    const totalHeight = rawHeights.reduce((sum, h) => sum + h, 0);
+    let currentY = 0;
+    const segments = rawHeights.map((h, idx) => {
+      const seg = {
+        index: idx,
+        x: 0,
+        y: currentY,
+        width: W,
+        height: h,
+        fraction: h / totalHeight,
+      };
+      currentY += h;
+      return seg;
+    });
+
     return {
-      width: targetWidth,
-      height: Math.max(600, Math.min(2400, targetHeight)),
+      totalWidth: W,
+      totalHeight: Math.round(totalHeight),
+      aspectRatio: W / totalHeight,
+      segments,
     };
   }
 }
@@ -152,15 +202,16 @@ export async function renderFullCompositionToCanvas(
   direction: StitchDirection,
   borderRadius: number,
   layers: CanvasLayer[],
-  exportSettings: ExportSettings,
-  previewDimensions?: { width: number; height: number }
+  exportSettings: ExportSettings
 ): Promise<HTMLCanvasElement> {
   const scale = exportSettings.scale;
   
-  // Use preview dimension or calculate
-  const baseDim = previewDimensions || calculateCanvasSize(images, direction, 1200);
-  const canvasWidth = Math.round(baseDim.width * scale);
-  const canvasHeight = Math.round(baseDim.height * scale);
+  // Calculate natural dimensions directly added together
+  const baseReference = scale === 2 ? 2000 : 1000;
+  const layout = getStitchedCanvasDimensions(images, direction, baseReference);
+
+  const canvasWidth = layout.totalWidth;
+  const canvasHeight = layout.totalHeight;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvasWidth;
@@ -172,7 +223,7 @@ export async function renderFullCompositionToCanvas(
   ctx.imageSmoothingQuality = 'high';
 
   // 1. Clip Canvas with overall Border Radius if > 0
-  const scaledRadius = borderRadius * scale;
+  const scaledRadius = borderRadius * (canvasWidth / 500);
   ctx.save();
   if (scaledRadius > 0) {
     ctx.beginPath();
@@ -184,72 +235,25 @@ export async function renderFullCompositionToCanvas(
     ctx.clip();
   }
 
-  // 2. Render Stitched Base Images (0 gap)
-  const totalWeight = images.reduce((sum, img) => sum + (img.weight || 1), 0);
-  let accumulatedOffset = 0;
-
-  for (let i = 0; i < images.length; i++) {
+  // 2. Render Stitched Base Images (directly added with exact natural proportions)
+  for (let i = 0; i < layout.segments.length; i++) {
+    const seg = layout.segments[i];
     const item = images[i];
-    const weight = item.weight || 1;
-    const proportion = weight / totalWeight;
-
-    let partX = 0;
-    let partY = 0;
-    let partW = canvasWidth;
-    let partH = canvasHeight;
-
-    if (direction === 'horizontal') {
-      partW = i === images.length - 1 ? canvasWidth - accumulatedOffset : Math.round(canvasWidth * proportion);
-      partX = accumulatedOffset;
-      partY = 0;
-      partH = canvasHeight;
-      accumulatedOffset += partW;
-    } else {
-      partH = i === images.length - 1 ? canvasHeight - accumulatedOffset : Math.round(canvasHeight * proportion);
-      partX = 0;
-      partY = accumulatedOffset;
-      partW = canvasWidth;
-      accumulatedOffset += partH;
-    }
 
     try {
       const imgElement = await loadImage(item.displayUrl || item.originalUrl);
       ctx.save();
-      // Clip to this block
       ctx.beginPath();
-      ctx.rect(partX, partY, partW, partH);
+      ctx.rect(seg.x, seg.y, seg.width, seg.height);
       ctx.clip();
 
-      // Draw image object-fit: cover inside [partX, partY, partW, partH]
-      const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight;
-      const partAspect = partW / partH;
-
-      let drawW = partW;
-      let drawH = partH;
-      let drawX = partX;
-      let drawY = partY;
-
-      if (imgAspect > partAspect) {
-        // Image is wider than part -> crop sides
-        drawH = partH;
-        drawW = partH * imgAspect;
-        drawX = partX + (partW - drawW) / 2;
-        drawY = partY;
-      } else {
-        // Image is taller than part -> crop top/bottom
-        drawW = partW;
-        drawH = partW / imgAspect;
-        drawX = partX;
-        drawY = partY + (partH - drawH) / 2;
-      }
-
-      ctx.drawImage(imgElement, drawX, drawY, drawW, drawH);
+      // Render image directly into its naturally proportioned space
+      ctx.drawImage(imgElement, seg.x, seg.y, seg.width, seg.height);
       ctx.restore();
     } catch (e) {
       console.error('Error drawing image block:', e);
-      // Fallback placeholder fill
       ctx.fillStyle = '#E6DDD4';
-      ctx.fillRect(partX, partY, partW, partH);
+      ctx.fillRect(seg.x, seg.y, seg.width, seg.height);
     }
   }
 
@@ -263,11 +267,11 @@ export async function renderFullCompositionToCanvas(
     ctx.save();
     ctx.globalAlpha = layer.opacity;
 
-    // Convert percentage coordinates back to canvas pixel coordinates
+    // Convert percentage coordinates relative to canvas dimensions
     const lx = (layer.x / 100) * canvasWidth;
-    const ly = (layer.y / 100) * canvasWidth; // maintain aspect ratio scale
+    const ly = (layer.y / 100) * canvasHeight;
     const lw = (layer.width / 100) * canvasWidth;
-    const lh = (layer.height / 100) * canvasWidth;
+    const lh = (layer.height / 100) * canvasHeight;
 
     const centerX = lx + lw / 2;
     const centerY = ly + lh / 2;
@@ -289,7 +293,7 @@ export async function renderFullCompositionToCanvas(
 
       if (shape.strokeEnabled && shape.strokeWidth > 0) {
         ctx.strokeStyle = shape.strokeColor;
-        ctx.lineWidth = shape.strokeWidth * scale;
+        ctx.lineWidth = shape.strokeWidth * (canvasWidth / 600);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.stroke();
@@ -299,11 +303,11 @@ export async function renderFullCompositionToCanvas(
       try {
         const stickerImg = await loadImage(sticker.imageUrl);
 
-        if (sticker.shadowEnabled && sticker.shadowBlur > 0) {
+        if (sticker.shadowEnabled && (sticker.shadowBlur || 0) > 0) {
           ctx.shadowColor = sticker.shadowColor || 'rgba(0, 0, 0, 0.35)';
-          ctx.shadowBlur = sticker.shadowBlur * scale;
-          ctx.shadowOffsetX = (sticker.shadowOffsetX ?? 0) * scale;
-          ctx.shadowOffsetY = (sticker.shadowOffsetY ?? 4) * scale;
+          ctx.shadowBlur = (sticker.shadowBlur || 8) * (canvasWidth / 600);
+          ctx.shadowOffsetX = (sticker.shadowOffsetX ?? 0) * (canvasWidth / 600);
+          ctx.shadowOffsetY = (sticker.shadowOffsetY ?? 4) * (canvasWidth / 600);
         }
 
         drawImageWithStroke(
@@ -313,11 +317,11 @@ export async function renderFullCompositionToCanvas(
           0,
           lw,
           lh,
-          sticker.strokeWidth * scale,
+          (sticker.strokeWidth || 0) * (canvasWidth / 600),
           sticker.strokeColor,
           sticker.isFlippedX
         );
-        // Clear shadow so it doesn't affect subsequent elements
+
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;

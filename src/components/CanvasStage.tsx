@@ -6,6 +6,7 @@ import {
   ShapeLayer,
   StickerLayer,
 } from '../types';
+import { getStitchedCanvasDimensions } from '../utils/canvasRenderer';
 import { SplitHandle } from './SplitHandle';
 import { RotateCw, X } from 'lucide-react';
 
@@ -39,6 +40,9 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   const stageRef = useRef<HTMLDivElement>(null);
   const isHorizontal = direction === 'horizontal';
 
+  // Compute exact layout directly by adding image dimensions together (NO preset board!)
+  const layout = getStitchedCanvasDimensions(images, direction, 1000);
+
   const [dragAction, setDragAction] = useState<{
     type: 'move' | 'resize' | 'rotate';
     handle?: string;
@@ -49,8 +53,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     stageRect: DOMRect;
   } | null>(null);
 
-  const totalWeight = images.reduce((sum, img) => sum + (img.weight || 1), 0);
-
   useEffect(() => {
     if (!dragAction) return;
 
@@ -60,7 +62,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       const dyPx = e.clientY - startY;
 
       const dxPct = (dxPx / stageRect.width) * 100;
-      const dyPct = (dyPx / stageRect.width) * 100;
+      const dyPct = (dyPx / stageRect.height) * 100;
 
       if (type === 'move') {
         onUpdateLayer(layerId, {
@@ -99,7 +101,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         });
       } else if (type === 'rotate') {
         const layerCenterPxX = stageRect.left + ((initialLayer.x + initialLayer.width / 2) / 100) * stageRect.width;
-        const layerCenterPxY = stageRect.top + ((initialLayer.y + initialLayer.height / 2) / 100) * stageRect.width;
+        const layerCenterPxY = stageRect.top + ((initialLayer.y + initialLayer.height / 2) / 100) * stageRect.height;
         const angleRad = Math.atan2(e.clientY - layerCenterPxY, e.clientX - layerCenterPxX);
         let angleDeg = Math.round((angleRad * 180) / Math.PI) - 90;
         if (angleDeg < 0) angleDeg += 360;
@@ -243,7 +245,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-6 overflow-hidden select-none">
+    <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4 overflow-hidden select-none touch-none">
       {/* SVG Definitions for live sticker strokes */}
       <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
         <defs>
@@ -275,28 +277,30 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         </defs>
       </svg>
 
-      {/* Main Canvas Container Frame with responsive constraints */}
+      {/* Main Canvas Container Frame:
+          Aspect ratio dynamically set by adding image sizes together directly!
+          No preset plate! */}
       <div
         ref={stageRef}
         onClick={() => onSelectLayer(null)}
         className="relative bg-white shadow-xl transition-all duration-150 overflow-hidden shrink-0"
         style={{
-          width: isHorizontal ? 'min(92vw, 680px)' : 'min(82vw, 440px)',
-          maxHeight: 'calc(100dvh - 190px)',
-          aspectRatio: isHorizontal ? '4 / 3' : '3 / 4',
+          aspectRatio: `${layout.aspectRatio}`,
+          maxWidth: '100%',
+          maxHeight: '100%',
           borderRadius: `${borderRadius}px`,
         }}
       >
-        {/* Layer 1: Base Stitched Images (0 gap) */}
+        {/* Layer 1: Stitched Base Images (directly added together, 0 gap) */}
         <div
           className={`absolute inset-0 flex w-full h-full overflow-hidden ${
             isHorizontal ? 'flex-row' : 'flex-col'
           }`}
           style={{ gap: 0 }}
         >
-          {images.map((item, index) => {
-            const weight = item.weight || 1;
-            const flexBasisPct = ((weight / totalWeight) * 100).toFixed(2);
+          {layout.segments.map((seg) => {
+            const item = images[seg.index];
+            if (!item) return null;
 
             return (
               <div
@@ -305,37 +309,37 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
                   e.stopPropagation();
                   onSelectImageForCrop(item);
                 }}
-                className="relative overflow-hidden group cursor-pointer transition-all"
+                className="relative overflow-hidden group cursor-pointer transition-all shrink-0"
                 style={{
-                  flexGrow: weight,
-                  flexShrink: 1,
-                  flexBasis: `${flexBasisPct}%`,
+                  width: isHorizontal ? `${seg.fraction * 100}%` : '100%',
+                  height: isHorizontal ? '100%' : `${seg.fraction * 100}%`,
                 }}
               >
                 <img
                   src={item.displayUrl || item.originalUrl}
                   alt=""
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover pointer-events-none transition-transform duration-300 group-hover:scale-[1.01]"
+                  className="w-full h-full object-fill pointer-events-none transition-transform duration-300 group-hover:scale-[1.01]"
                 />
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
 
                 <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/30 backdrop-blur-xs text-[10px] text-white/90 font-mono pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  #{index + 1}
+                  #{seg.index + 1}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Draggable Partition Short Bars */}
-        {images.slice(0, -1).map((_, index) => {
-          let cumulativeWeight = 0;
+        {/* Draggable Partition Short Bars between adjacent images */}
+        {layout.segments.slice(0, -1).map((seg, index) => {
+          // Calculate cumulative percentage position for this boundary
+          let cumulativeFraction = 0;
           for (let i = 0; i <= index; i++) {
-            cumulativeWeight += images[i].weight || 1;
+            cumulativeFraction += layout.segments[i].fraction;
           }
-          const positionPct = (cumulativeWeight / totalWeight) * 100;
+          const positionPct = cumulativeFraction * 100;
 
           const stageWidth = stageRef.current?.clientWidth || 500;
           const stageHeight = stageRef.current?.clientHeight || 500;
@@ -354,8 +358,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
               <SplitHandle
                 index={index}
                 direction={direction}
-                weightA={images[index].weight || 1}
-                weightB={images[index + 1].weight || 1}
+                weightA={images[index]?.weight || 1}
+                weightB={images[index + 1]?.weight || 1}
                 containerSize={isHorizontal ? stageWidth : stageHeight}
                 onAdjustWeights={onAdjustWeights}
                 onCommitChange={onCommitChange}
@@ -368,7 +372,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         {layers.map((layer) => {
           const isSelected = selectedLayerId === layer.id;
 
-          // Compute sticker filters (stroke and shadow)
           let stickerFilterStyle = '';
           if (layer.type === 'sticker') {
             const stk = layer as StickerLayer;
