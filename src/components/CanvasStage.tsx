@@ -37,11 +37,47 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   onSelectImageForCrop,
   onCommitChange,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const isHorizontal = direction === 'horizontal';
 
   // Compute exact layout directly by adding image dimensions together (NO preset board!)
   const layout = getStitchedCanvasDimensions(images, direction, 1000);
+
+  // Measure available container size to guarantee the stage is always visible
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: typeof window !== 'undefined' ? Math.min(window.innerWidth - 32, 600) : 600,
+    height: typeof window !== 'undefined' ? Math.min(window.innerHeight - 200, 480) : 480,
+  });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 20 && rect.height > 20) {
+          setContainerSize({
+            width: rect.width - 24,
+            height: rect.height - 24,
+          });
+        }
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Calculate fitting width and height:
+  const ar = layout.aspectRatio > 0 ? layout.aspectRatio : 1;
+  let stageWidth = containerSize.width;
+  let stageHeight = stageWidth / ar;
+
+  if (stageHeight > containerSize.height) {
+    stageHeight = containerSize.height;
+    stageWidth = stageHeight * ar;
+  }
 
   const [dragAction, setDragAction] = useState<{
     type: 'move' | 'resize' | 'rotate';
@@ -245,7 +281,10 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4 overflow-hidden select-none touch-none">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full flex items-center justify-center p-2 sm:p-4 overflow-hidden select-none touch-none"
+    >
       {/* SVG Definitions for live sticker strokes */}
       <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
         <defs>
@@ -277,17 +316,16 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         </defs>
       </svg>
 
-      {/* Main Canvas Container Frame:
-          Aspect ratio dynamically set by adding image sizes together directly!
-          No preset plate! */}
+      {/* Main Canvas Stage:
+          Explicit width & height calculated from exact summed image sizes!
+          Always visible, sharp and responsive! */}
       <div
         ref={stageRef}
         onClick={() => onSelectLayer(null)}
         className="relative bg-white shadow-xl transition-all duration-150 overflow-hidden shrink-0"
         style={{
-          aspectRatio: `${layout.aspectRatio}`,
-          maxWidth: '100%',
-          maxHeight: '100%',
+          width: `${Math.max(160, Math.round(stageWidth))}px`,
+          height: `${Math.max(160, Math.round(stageHeight))}px`,
           borderRadius: `${borderRadius}px`,
         }}
       >
@@ -333,16 +371,12 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         </div>
 
         {/* Draggable Partition Short Bars between adjacent images */}
-        {layout.segments.slice(0, -1).map((seg, index) => {
-          // Calculate cumulative percentage position for this boundary
+        {layout.segments.slice(0, -1).map((_, index) => {
           let cumulativeFraction = 0;
           for (let i = 0; i <= index; i++) {
             cumulativeFraction += layout.segments[i].fraction;
           }
           const positionPct = cumulativeFraction * 100;
-
-          const stageWidth = stageRef.current?.clientWidth || 500;
-          const stageHeight = stageRef.current?.clientHeight || 500;
 
           return (
             <div
@@ -441,7 +475,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
               {/* Bounding Box & Transform Handles when Selected */}
               {isSelected && (
                 <>
-                  {/* Rotation handle above */}
                   <div
                     className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-white shadow-md border border-[#8D9B8E] flex items-center justify-center cursor-grab active:cursor-grabbing text-[#556456] hover:bg-[#8D9B8E] hover:text-white transition-colors"
                     onPointerDown={(e) => startDrag(e, layer, 'rotate')}
