@@ -2,5 +2,7 @@
   "name": "Pin - 图片拼接编辑器",
   "description": "简约低饱和莫兰迪风格图片拼接App，支持横竖拼接、分块占比调节、单图裁剪、圆角设置、几何形状与带描边PNG贴纸库，支持1x/2x高清导出。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
