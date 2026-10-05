@@ -1,0 +1,5 @@
+Trigger GitHub Pages deployment
+
+This file was added by an automated assistant to trigger the existing GitHub Actions workflow that builds and deploys the site.
+
+Timestamp: 2026-10-05T00:00:00Z
